@@ -6,8 +6,10 @@ from pprint import pprint
 from collections import defaultdict
 import numpy as np
 import pandas as pd
+from itertools import product
+from tqdm import tqdm
 
-def load_csv(filename: str):
+def load_csv(filename='data.csv'):
     # import csv file in python
     csv_file = pd.read_csv(filename, delimiter=';')
 
@@ -91,32 +93,11 @@ def precision_recall_at_n(predictions, n=10, threshold=3.5):
 
     return precisions, recalls
 
-def find_best_parameters(algo, data):
-    param_grid = {
-        'k': [10, 15, 20, 25, 30, 35, 40]
-    }
-
-    print(type(algo))
-    gs = GridSearchCV(algo, param_grid, measures=["mae"], cv=3)
-    
-    gs.fit(data)
-
-    # best RMSE score
-    print(gs.best_score["mae"])
-    # combination of parameters that gave the best RMSE score
-    print(gs.best_params["mae"])
-
-    input("Continue....")
-    print()
-
-    results_df = pd.DataFrame.from_dict(gs.cv_results)
-    print(results_df)
-
-def run_knn(use_builtin: bool, test_size: float, neighbors: int, filename='data.csv'):
+def run_knn(use_builtin: bool, test_size: float, neighbors: int, n: int):
     if use_builtin:
         data = Dataset.load_builtin('ml-100k')
     else:
-        data = load_csv(filename)
+        data = load_csv()
 
     # Dataset splitting in trainset and testset for 25% sparsity
     trainset25, testset25 = train_test_split(data, test_size=test_size,
@@ -132,13 +113,19 @@ def run_knn(use_builtin: bool, test_size: float, neighbors: int, filename='data.
 
     # prepare user-based KNN for predicting ratings from trainset25
     algo = KNNWithMeans(k, sim_options=sim_options_KNN, verbose=False)
-    fit_algo(algo, trainset25, testset25)
+    fit_algo(algo, trainset25, testset25, n)
+    result_dict = fit_algo(algo, trainset25, testset25, n)
+    result_dict["Algo"] = "KNN"
+    result_dict["Dataset"] = "ml-100k" if use_builtin else "custom"
+    result_dict["Neighbors"] = neighbors
+    result_dict["Sparsity"] = test_size
+    return result_dict
 
-def run_svd(use_builtin: bool, test_size: float, filename='data.csv'):
+def run_svd(use_builtin: bool, test_size: float, n: int):
     if use_builtin:
         data = Dataset.load_builtin('ml-100k')
     else:
-        data = load_csv(filename)
+        data = load_csv()
 
     # Dataset splitting in trainset and testset for 25% sparsity
     trainset25, testset25 = train_test_split(data, test_size=test_size,
@@ -146,9 +133,13 @@ def run_svd(use_builtin: bool, test_size: float, filename='data.csv'):
     
     # Use SVD algorithm
     algo = SVD()
-    fit_algo(algo, trainset25, testset25)
+    result_dict = fit_algo(algo, trainset25, testset25, n)
+    result_dict["Algo"] = "SVD"
+    result_dict["Dataset"] = "ml-100k" if use_builtin else "custom"
+    result_dict["Sparsity"] = test_size
+    return result_dict
 
-def fit_algo(algo: AlgoBase, trainset: Dataset, testset: Dataset):
+def fit_algo(algo: AlgoBase, trainset: Dataset, testset: Dataset, n: int):
     algo.fit(trainset)
 
     # estimate the ratings for all the pairs (user, item) in testset25
@@ -157,32 +148,113 @@ def fit_algo(algo: AlgoBase, trainset: Dataset, testset: Dataset):
     # pprint(predictions25KNN)
 
     # the first user has uid=0 and first item iid=0
-    for (uid, iid, real, est, _) in predictions25KNN:
-        if uid == 0:
-            print(f'{uid} {iid} {real} {est}')
+    # for (uid, iid, real, est, _) in predictions25KNN:
+        # if uid == 0:
+            # print(f'{uid} {iid} {real} {est}')
 
-    mae(predictions25KNN)
+    mae_value = mae(predictions25KNN, verbose=False)
 
-    precisions, recalls = precision_recall_at_n(predictions25KNN, n=5, threshold=4)
+    precisions, recalls = precision_recall_at_n(predictions25KNN, n=n, threshold=4)
 
     # Precision and recall can then be averaged over all users
     pre = sum(prec for prec in precisions.values()) / len(precisions)
     recall = sum(rec for rec in recalls.values()) / len(recalls)
-    print("Precision:", pre)
-    print("Recall:", recall)
-    print("F1:", 2*pre*recall/(pre+recall))
+    f1 = 2*pre*recall/(pre+recall)
+    # print(f"\nTOP {n} RESULTS\n")
+    # print("Precision:", pre)
+    # print("Recall:", recall)
+    # print("F1:", f1)
+
+    return {
+        "TopN": n,
+        "MAE": mae_value,
+        "Precision": pre,
+        "Recall": recall,
+        "F1": f1
+    } 
+
+def question_1(df):
+    filtered_df = df[(df['Dataset'] == 'ml-100k') & (df['Algo'] == 'KNN')]
+
+    # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
+    grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity", "Neighbors"])["MAE"].mean().reset_index()
+    grouped_df.to_csv("output_q1.csv", index=False)
+
+    # Create a dictionary to store optimal K values for each sparsity level
+    optimal_k_dict = {}
+
+    # Loop over each unique sparsity level
+    for sparsity in grouped_df["Sparsity"].unique():
+        # Filter the DataFrame for the current sparsity level
+        sparse_df = grouped_df[grouped_df["Sparsity"] == sparsity]
+        
+        # Find the optimal K by selecting the row with the smallest MAE for each sparsity
+        optimal_k = sparse_df.loc[sparse_df["MAE"].idxmin(), "Neighbors"]
+        
+        # Store the optimal K value in the dictionary
+        optimal_k_dict[sparsity] = (optimal_k, sparse_df["MAE"].min())
+
+    # Display the dictionary of optimal K values for each sparsity
+    print("\n\n1. Optimal K values for each sparsity level:")
+    for sparsity, entry in optimal_k_dict.items():
+        optimal_k, min_mae = entry
+        print(f"Sparsity: {sparsity}, Optimal K: {optimal_k}, Min. MAE: {min_mae}")
+
+def question_2(df):
+    filtered_df = df[(df['Dataset'] == 'custom')]
+
+    # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
+    grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity"])["MAE"].min().reset_index()
+    grouped_df.to_csv("output_q2.csv", index=False)
+
+    # Display the dictionary of optimal K values for each sparsity
+    print("\n\n2. MAE performances for KNN and SVD on Custom dataset:")
+    print(grouped_df)
+
+def question_3(df):
+    filtered_df = df[(df['Dataset'] == 'custom')]
+
+    # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
+    grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity", "TopN"]).agg({
+        'Precision': 'mean',
+        'Recall': 'mean',
+        'F1': 'mean'
+    }).reset_index()
+    grouped_df.to_csv("output_q3.csv", index=False)
+
+    # Display the dictionary of optimal K values for each sparsity
+    print("\n\n3. Metrics performances for KNN and SVD on Custom dataset (on file)")
 
 if __name__ == '__main__':
-    print("==========================================================")
-    print("KNN RESULTS - ml100k")
-    run_knn(use_builtin=True, test_size=.25, neighbors=10)
-    print("----------------------------------------------------------")
-    print("SVD RESULTS - ml100k")
-    run_svd(use_builtin=True, test_size=.25)
-    print("==========================================================")
-    print("KNN RESULTS - custom")
-    run_knn(use_builtin=False, test_size=.25, neighbors=10)
-    print("----------------------------------------------------------")
-    print("SVD RESULTS - custom")
-    run_svd(use_builtin=False, test_size=.25)
-    print("==========================================================")
+    # Columns must be Algo, Sparsity, Neighbors, MAE, TopN, Precision, Recall, F1
+    columns = ["Dataset", "Algo", "Sparsity", "Neighbors", "MAE", "TopN", "Precision", "Recall", "F1"]
+
+    # Create an empty DataFrame with these columns
+    df = pd.DataFrame(columns=columns)
+
+    sparsity_list_builtin = [.25, .75]
+    sparsity_list_custom = [.25, .35, .40, .45, .50, .60, .65, .70, .75]
+    n_list_builtin = [10]
+    n_list_custom = range(10,101,5)
+    k_list_builtin = range(50,91,1)
+    k_list_custom = range(1,52)
+
+    # Create a list to hold each row dictionary
+    rows = []
+
+    for sparsity, k, n in tqdm(product(sparsity_list_builtin, k_list_builtin, n_list_builtin)):
+        rows.append(run_knn(True, sparsity, k, n))
+        rows.append(run_svd(True, sparsity, n))
+
+    for sparsity, k, n in tqdm(product(sparsity_list_custom, k_list_custom, n_list_custom)):
+        rows.append(run_knn(False, sparsity, k, n))
+        rows.append(run_svd(False, sparsity, n))
+
+    # Convert the list of dictionaries to a DataFrame
+    df = pd.json_normalize(rows)
+    # Export DataFrame to a CSV file
+    df.to_csv("output.csv", index=False)
+
+    question_1(df)
+    question_2(df)
+    question_3(df)
