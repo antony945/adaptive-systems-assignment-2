@@ -1,36 +1,30 @@
-from surprise import Dataset, KNNWithMeans, Reader
+from surprise import Dataset, KNNWithMeans, Reader, SVD
 from surprise.accuracy import mae
-from surprise.model_selection import train_test_split
+from surprise.model_selection import train_test_split, KFold, GridSearchCV
+from surprise.prediction_algorithms.algo_base import AlgoBase 
 from pprint import pprint
 from collections import defaultdict
 import numpy as np
 import pandas as pd
 
 def load_csv(filename: str):
-    # # Dataset Load
-
-    # In[2]:
-
     # import csv file in python
     csv_file = pd.read_csv(filename, delimiter=';')
 
     # conversion of the table in a numpy matrix with only ratings
     # method .to_numpy() does not copy the header row
     # np.delete deletes the first column
-
     temp = np.delete(csv_file.to_numpy(), np.s_[0], axis=1)
 
     # Matrix is converted in User-Movies from Movies-User
     # Later, the matrix is flatten to a vector of values.
     # For each user, all the movie ratings are reported
     # user1item1, user1item2, user1item3,...
-
     ratings = temp.T.flatten()
 
     # Vectors users and movies are the corresponding columns in the dataframne.
     # As the ratings are ordered user1[allratings], user2[allratings], ...
     # the user and movies vectors follow the same logic
-
     i = 0
     j = 0
     users = []
@@ -97,32 +91,70 @@ def precision_recall_at_n(predictions, n=10, threshold=3.5):
 
     return precisions, recalls
 
-def run(use_builtin: bool, filename='data.csv'):
+def find_best_parameters(algo, data):
+    param_grid = {
+        'k': [10, 15, 20, 25, 30, 35, 40]
+    }
+
+    print(type(algo))
+    gs = GridSearchCV(algo, param_grid, measures=["mae"], cv=3)
+    
+    gs.fit(data)
+
+    # best RMSE score
+    print(gs.best_score["mae"])
+    # combination of parameters that gave the best RMSE score
+    print(gs.best_params["mae"])
+
+    input("Continue....")
+    print()
+
+    results_df = pd.DataFrame.from_dict(gs.cv_results)
+    print(results_df)
+
+def run_knn(use_builtin: bool, test_size: float, neighbors: int, filename='data.csv'):
     if use_builtin:
         data = Dataset.load_builtin('ml-100k')
     else:
         data = load_csv(filename)
 
     # Dataset splitting in trainset and testset for 25% sparsity
-    trainset25, testset25 = train_test_split(data, test_size=.25,
+    trainset25, testset25 = train_test_split(data, test_size=test_size,
                                             random_state=22)
-
+    
     sim_options_KNN = {
         'name': "pearson",
         'user_based': True  # compute similarities between users
     }
 
     # number of neighbors
-    k = 10
+    k = neighbors
 
     # prepare user-based KNN for predicting ratings from trainset25
     algo = KNNWithMeans(k, sim_options=sim_options_KNN, verbose=False)
-    algo.fit(trainset25)
+    fit_algo(algo, trainset25, testset25)
+
+def run_svd(use_builtin: bool, test_size: float, filename='data.csv'):
+    if use_builtin:
+        data = Dataset.load_builtin('ml-100k')
+    else:
+        data = load_csv(filename)
+
+    # Dataset splitting in trainset and testset for 25% sparsity
+    trainset25, testset25 = train_test_split(data, test_size=test_size,
+                                            random_state=22)
+    
+    # Use SVD algorithm
+    algo = SVD()
+    fit_algo(algo, trainset25, testset25)
+
+def fit_algo(algo: AlgoBase, trainset: Dataset, testset: Dataset):
+    algo.fit(trainset)
 
     # estimate the ratings for all the pairs (user, item) in testset25
-    predictions25KNN = algo.test(testset25)
+    predictions25KNN = algo.test(testset)
 
-    pprint(predictions25KNN)
+    # pprint(predictions25KNN)
 
     # the first user has uid=0 and first item iid=0
     for (uid, iid, real, est, _) in predictions25KNN:
@@ -140,6 +172,17 @@ def run(use_builtin: bool, filename='data.csv'):
     print("Recall:", recall)
     print("F1:", 2*pre*recall/(pre+recall))
 
-
 if __name__ == '__main__':
-    run(use_builtin=True)
+    print("==========================================================")
+    print("KNN RESULTS - ml100k")
+    run_knn(use_builtin=True, test_size=.25, neighbors=10)
+    print("----------------------------------------------------------")
+    print("SVD RESULTS - ml100k")
+    run_svd(use_builtin=True, test_size=.25)
+    print("==========================================================")
+    print("KNN RESULTS - custom")
+    run_knn(use_builtin=False, test_size=.25, neighbors=10)
+    print("----------------------------------------------------------")
+    print("SVD RESULTS - custom")
+    run_svd(use_builtin=False, test_size=.25)
+    print("==========================================================")
