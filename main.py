@@ -201,18 +201,18 @@ def question_1(df):
         print(f"Sparsity: {sparsity}, Optimal K: {optimal_k}, Min. MAE: {min_mae}")
 
 def question_2(df):
-    filtered_df = df[(df['Dataset'] == 'custom')]
+    filtered_df = df[(df['Dataset'] == 'ml-100k')]
 
     # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
     grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity"])["MAE"].min().reset_index()
     grouped_df.to_csv("output_q2.csv", index=False)
 
     # Display the dictionary of optimal K values for each sparsity
-    print("\n\n2. MAE performances for KNN and SVD on Custom dataset:")
+    print("\n\n2. MAE performances for KNN and SVD on built-in dataset:")
     print(grouped_df)
 
 def question_3(df):
-    filtered_df = df[(df['Dataset'] == 'custom')]
+    filtered_df = df[(df['Dataset'] == 'ml-100k')]
 
     # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
     grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity", "TopN"]).agg({
@@ -223,9 +223,10 @@ def question_3(df):
     grouped_df.to_csv("output_q3.csv", index=False)
 
     # Display the dictionary of optimal K values for each sparsity
-    print("\n\n3. Metrics performances for KNN and SVD on Custom dataset (on file)")
+    print("\n\n3. Metrics performances for KNN and SVD on built-in dataset (on file)")
 
-if __name__ == '__main__':
+
+def run():
     # Columns must be Algo, Sparsity, Neighbors, MAE, TopN, Precision, Recall, F1
     columns = ["Dataset", "Algo", "Sparsity", "Neighbors", "MAE", "TopN", "Precision", "Recall", "F1"]
 
@@ -238,14 +239,17 @@ if __name__ == '__main__':
     # ------------------------------------------------------
     # QUESTION 1
 
-    # TODO: NOT NEEDED
-    # sparsity_list_1 = [.25, .75]
-    # n_list_1 = [10]
-    # k_list_1 = range(50,91,1)
-    # for sparsity, k, n in tqdm(product(sparsity_list_1, k_list_1, n_list_1)):
-    #     rows.append(run_knn(True, sparsity, k, n))
-    #     rows.append(run_svd(True, sparsity, n))
+    sparsity1 = .25
+    sparsity2 = .75
+    k_list = range(50,91,1)
+    n = 10
 
+    for k in tqdm(k_list):
+        rows.append(run_knn(True, sparsity1, k, n))
+        rows.append(run_svd(True, sparsity1, n))
+    for k in tqdm(k_list):
+        rows.append(run_knn(True, sparsity2, k, n))
+        rows.append(run_svd(True, sparsity2, n))
 
     # ------------------------------------------------------
     # QUESTION 2
@@ -260,7 +264,6 @@ if __name__ == '__main__':
 
     sparsity_list = [.25, .35, .40, .45, .50, .60, .65, .70, .75]
     k_list = generate_k_values(sparsity_list, start_k=75, end_k=61) # 75 BEST K FOR .25, 61 BEST K FOR .75
-    n_list = range(10,101,5)
     n = 10
 
     for sparsity, k in tqdm(zip(sparsity_list, k_list)):
@@ -271,6 +274,8 @@ if __name__ == '__main__':
     # QUESTION 3
     sparsity = sparsity_list[0]
     k = k_list[0]
+    n_list = range(10,101,5)
+
     for n in tqdm(n_list):
         rows.append(run_knn(True, sparsity, k, n))
         rows.append(run_svd(True, sparsity, n))
@@ -286,7 +291,11 @@ if __name__ == '__main__':
     df = pd.json_normalize(rows)
     # Export DataFrame to a CSV file
     df.to_csv("output.csv", index=False)
+    return df
 
+if __name__ == '__main__':
+    df = run()
+    # df = pd.read_csv("output.csv", delimiter=',')
     question_1(df)
     question_2(df)
     question_3(df)
