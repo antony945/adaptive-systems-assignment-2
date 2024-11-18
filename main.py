@@ -201,18 +201,18 @@ def question_1(df):
         print(f"Sparsity: {sparsity}, Optimal K: {optimal_k}, Min. MAE: {min_mae}")
 
 def question_2(df):
-    filtered_df = df[(df['Dataset'] == 'ml-100k')]
+    filtered_df = df[(df['Dataset'] == 'custom')]
 
     # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
     grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity"])["MAE"].min().reset_index()
     grouped_df.to_csv("output_q2.csv", index=False)
 
     # Display the dictionary of optimal K values for each sparsity
-    print("\n\n2. MAE performances for KNN and SVD on built-in dataset:")
+    print("\n\n2. MAE performances for KNN and SVD on Custom dataset:")
     print(grouped_df)
 
 def question_3(df):
-    filtered_df = df[(df['Dataset'] == 'ml-100k')]
+    filtered_df = df[(df['Dataset'] == 'custom')]
 
     # Group by Sparsity and Neighbors, and calculate the mean MAE for each combination
     grouped_df = filtered_df.groupby(["Dataset", "Algo", "Sparsity", "TopN"]).agg({
@@ -223,79 +223,38 @@ def question_3(df):
     grouped_df.to_csv("output_q3.csv", index=False)
 
     # Display the dictionary of optimal K values for each sparsity
-    print("\n\n3. Metrics performances for KNN and SVD on built-in dataset (on file)")
+    print("\n\n3. Metrics performances for KNN and SVD on Custom dataset (on file)")
 
-
-def run():
+if __name__ == '__main__':
     # Columns must be Algo, Sparsity, Neighbors, MAE, TopN, Precision, Recall, F1
     columns = ["Dataset", "Algo", "Sparsity", "Neighbors", "MAE", "TopN", "Precision", "Recall", "F1"]
 
     # Create an empty DataFrame with these columns
     df = pd.DataFrame(columns=columns)
 
+    sparsity_list_builtin = [.25, .75]
+    sparsity_list_custom = [.25, .35, .40, .45, .50, .60, .65, .70, .75]
+    n_list_builtin = [10]
+    n_list_custom = range(10,101,5)
+    k_list_builtin = range(50,91,1)
+    k_list_custom = range(1,52)
+
     # Create a list to hold each row dictionary
     rows = []
 
-    # ------------------------------------------------------
-    # QUESTION 1
-
-    sparsity1 = .25
-    sparsity2 = .75
-    k_list = range(50,91,1)
-    n = 10
-
-    for k in tqdm(k_list):
-        rows.append(run_knn(True, sparsity1, k, n))
-        rows.append(run_svd(True, sparsity1, n))
-    for k in tqdm(k_list):
-        rows.append(run_knn(True, sparsity2, k, n))
-        rows.append(run_svd(True, sparsity2, n))
-
-    # ------------------------------------------------------
-    # QUESTION 2
-    def generate_k_values(sparsity_list, start_k, end_k):
-        # Calculate the step size based on sparsity
-        sparsity_range = len(sparsity_list) - 1
-        k_values = [
-            start_k + (end_k - start_k) * i / sparsity_range
-            for i in range(len(sparsity_list))
-        ]
-        return [round(k) for k in k_values]
-
-    sparsity_list = [.25, .35, .40, .45, .50, .60, .65, .70, .75]
-    k_list = generate_k_values(sparsity_list, start_k=75, end_k=61) # 75 BEST K FOR .25, 61 BEST K FOR .75
-    n = 10
-
-    for sparsity, k in tqdm(zip(sparsity_list, k_list)):
+    for sparsity, k, n in tqdm(product(sparsity_list_builtin, k_list_builtin, n_list_builtin)):
         rows.append(run_knn(True, sparsity, k, n))
         rows.append(run_svd(True, sparsity, n))
 
-    # ------------------------------------------------------
-    # QUESTION 3
-    sparsity = sparsity_list[0]
-    k = k_list[0]
-    n_list = range(10,101,5)
-
-    for n in tqdm(n_list):
-        rows.append(run_knn(True, sparsity, k, n))
-        rows.append(run_svd(True, sparsity, n))
-
-    sparsity = sparsity_list[-1]
-    k = k_list[-1]
-    for n in tqdm(n_list):
-        rows.append(run_knn(True, sparsity, k, n))
-        rows.append(run_svd(True, sparsity, n))
-
+    for sparsity, k, n in tqdm(product(sparsity_list_custom, k_list_custom, n_list_custom)):
+        rows.append(run_knn(False, sparsity, k, n))
+        rows.append(run_svd(False, sparsity, n))
 
     # Convert the list of dictionaries to a DataFrame
     df = pd.json_normalize(rows)
     # Export DataFrame to a CSV file
     df.to_csv("output.csv", index=False)
-    return df
 
-if __name__ == '__main__':
-    df = run()
-    # df = pd.read_csv("output.csv", delimiter=',')
     question_1(df)
     question_2(df)
     question_3(df)

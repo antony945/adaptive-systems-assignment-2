@@ -34,7 +34,7 @@ def draw_1(file="output_q1.csv"):
 
         # Step 4: Show the plot
         plt.tight_layout()
-        plt.savefig(f"figures/1_{sparsity}.png", dpi=DPI)
+        plt.savefig(f"figures_clo/1_{sparsity}.png", dpi=DPI)
         plt.close()  # Close the plot to avoid overlapping when creating multiple plots
 
 def draw_2a(file="output_q2.csv"):
@@ -65,7 +65,7 @@ def draw_2a(file="output_q2.csv"):
 
     # Step 6: Show the plot
     plt.tight_layout()
-    plt.savefig(f"figures/2_a.png", dpi=DPI)
+    plt.savefig(f"figures_clo/2_a.png", dpi=DPI)
     plt.close()  # Close the plot to avoid overlapping when creating multiple plots
 
 def draw_2b(file="output_q2.csv"):
@@ -91,7 +91,7 @@ def draw_2b(file="output_q2.csv"):
 
     # Step 4: Show the plot
     plt.tight_layout()
-    plt.savefig(f"figures/2_b.png", dpi=DPI)
+    plt.savefig(f"figures_clo/2_b.png", dpi=DPI)
     plt.close()  # Close the plot to avoid overlapping when creating multiple plots
 
 def draw_3(file="output_q3.csv"):
@@ -149,7 +149,7 @@ def draw_3(file="output_q3.csv"):
         # Ensure that all lines are labeled in the legend
         plt.legend(loc="best")
         plt.grid(True)
-        plt.savefig(f"figures/3_{sparsity}.png", dpi=DPI)
+        plt.savefig(f"figures_clo/3_{sparsity}.png", dpi=DPI)
         plt.close()  # Close the plot to avoid overlapping when creating multiple plots
 
 if __name__ == '__main__':
