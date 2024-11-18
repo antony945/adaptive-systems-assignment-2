@@ -232,23 +232,55 @@ if __name__ == '__main__':
     # Create an empty DataFrame with these columns
     df = pd.DataFrame(columns=columns)
 
-    sparsity_list_builtin = [.25, .75]
-    sparsity_list_custom = [.25, .35, .40, .45, .50, .60, .65, .70, .75]
-    n_list_builtin = [10]
-    n_list_custom = range(10,101,5)
-    k_list_builtin = range(50,91,1)
-    k_list_custom = range(1,52)
-
     # Create a list to hold each row dictionary
     rows = []
 
-    for sparsity, k, n in tqdm(product(sparsity_list_builtin, k_list_builtin, n_list_builtin)):
+    # ------------------------------------------------------
+    # QUESTION 1
+
+    # TODO: NOT NEEDED
+    # sparsity_list_1 = [.25, .75]
+    # n_list_1 = [10]
+    # k_list_1 = range(50,91,1)
+    # for sparsity, k, n in tqdm(product(sparsity_list_1, k_list_1, n_list_1)):
+    #     rows.append(run_knn(True, sparsity, k, n))
+    #     rows.append(run_svd(True, sparsity, n))
+
+
+    # ------------------------------------------------------
+    # QUESTION 2
+    def generate_k_values(sparsity_list, start_k, end_k):
+        # Calculate the step size based on sparsity
+        sparsity_range = len(sparsity_list) - 1
+        k_values = [
+            start_k + (end_k - start_k) * i / sparsity_range
+            for i in range(len(sparsity_list))
+        ]
+        return [round(k) for k in k_values]
+
+    sparsity_list = [.25, .35, .40, .45, .50, .60, .65, .70, .75]
+    k_list = generate_k_values(sparsity_list, start_k=75, end_k=61) # 75 BEST K FOR .25, 61 BEST K FOR .75
+    n_list = range(10,101,5)
+    n = 10
+
+    for sparsity, k in tqdm(zip(sparsity_list, k_list)):
         rows.append(run_knn(True, sparsity, k, n))
         rows.append(run_svd(True, sparsity, n))
 
-    for sparsity, k, n in tqdm(product(sparsity_list_custom, k_list_custom, n_list_custom)):
-        rows.append(run_knn(False, sparsity, k, n))
-        rows.append(run_svd(False, sparsity, n))
+    # ------------------------------------------------------
+    # QUESTION 3
+    sparsity = sparsity_list[0]
+    k = k_list[0]
+    for n in tqdm(n_list):
+        rows.append(run_knn(True, sparsity, k, n))
+        rows.append(run_svd(True, sparsity, n))
+
+    sparsity = sparsity_list[-1]
+    k = k_list[-1]
+    for n in tqdm(n_list):
+        rows.append(run_knn(True, sparsity, k, n))
+        rows.append(run_svd(True, sparsity, n))
+
 
     # Convert the list of dictionaries to a DataFrame
     df = pd.json_normalize(rows)
